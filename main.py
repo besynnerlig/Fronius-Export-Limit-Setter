@@ -1,65 +1,108 @@
 #!/usr/bin/env python
+
+import sys
+import json
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
-from requests import get
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from argparse import ArgumentParser
 
-parser = ArgumentParser(description="Syncs the value in a helper entity in home assistant to a fronius inverter's soft limit field.")
+def parse_arguments():
+    parser = ArgumentParser(description="Set Fronius inverter's soft limit field to a specified value.")
+    parser.add_argument('-f', '--fronius_url', type=str, required=True, help='Fronius URL. Eg: http://192.168.2.100')
+    parser.add_argument('-p', '--fronius_password', type=str, required=True, help='Fronius service account password')
+    parser.add_argument('-e', '--export_limit', type=int, required=True, help='Export Limit as an integer value')
+    parser.add_argument('-n', '--not_headless', action="store_true", help="Run Firefox in headless mode.")
+    return parser.parse_args()
 
-parser.add_argument('-t', '--home_assistant_token', type=str, required=True, help='Home Assistant Token')
-parser.add_argument('-u', '--home_assistant_url', type=str, required=True, help='Home Assistant URL. Eg: http://192.168.2.100:8123')
-parser.add_argument('-f', '--fronius_url', type=str, required=True, help='Fronius URL. Eg: http://192.168.2.100')
-parser.add_argument('-p', '--fronius_password', type=str, required=True, help='Fronius service account password')
-parser.add_argument('-e', '--home_assistant_export_limit_entity', type=str, default='input_number.export_limit', help='Home Assistant Export Limit Entity (default: input_number.export_limit)')
-parser.add_argument('-n', '--not_headless', action="store_true", help="Do not run firefox in headless mode. Might be useful if running the script locally to test it or something...")
+def configure_driver(not_headless):
+    options = webdriver.FirefoxOptions()
+    if not not_headless:
+        options.add_argument("-headless")
+    return webdriver.Firefox(options=options)
 
-args = parser.parse_args()
-
-options = webdriver.FirefoxOptions()
-if not args.not_headless:
-    options.add_argument("-headless")
-driver = webdriver.Firefox(options)
-
-try:
+def set_export_limit(driver, fronius_url, fronius_password, export_limit):
     driver.implicitly_wait(10)
-    driver.get(f"{args.fronius_url}/#/settings/evu")
+    driver.get(f"{fronius_url}/#/settings/evu")
 
-    # While we're waiting for firefox to load, lets get the expected limit
-    response = get(
-        f"{args.home_assistant_url}/api/states/{args.home_assistant_export_limit_entity}",
-        headers={
-            "Authorization": f"Bearer {args.home_assistant_token}"
+    # Validate and adjust the desired limit
+    desired_limit = max(export_limit, 0)
+    result = {
+        "desired_limit": desired_limit,
+        "status": "unknown",
+        "message": ""
+    }
+
+    try:
+        username = driver.find_element(By.TAG_NAME, "select").get_property("value")
+        password = driver.find_element(By.CSS_SELECTOR, "[type=password]")
+        
+        assert username == 'string:service', f"Unexpected username: {username}"
+        
+        password.send_keys(fronius_password)
+        password.send_keys(Keys.RETURN)
+
+        limit = driver.find_element(By.CSS_SELECTOR, '[input-validator="softLimitValidator"]')
+        current_limit = limit.get_property("value")
+        result["current_limit"] = current_limit
+
+        if current_limit == str(desired_limit):
+            result["status"] = "skipped"
+            result["message"] = "Current limit matches desired limit. Skipping update."
+            return result
+        
+        limit.clear()
+        limit.send_keys(str(desired_limit))
+        ok_button = driver.find_elements(By.CSS_SELECTOR, "button.OK")
+        if ok_button:
+            ok_button[2].click()
+        else:
+            raise NoSuchElementException("OK button not found.")
+
+        # Confirm the limit has been set (optional additional verification step)
+        new_limit = limit.get_property("value")
+        if new_limit == str(desired_limit):
+            result["status"] = "success"
+            result["message"] = "Limit successfully updated."
+            result["new_limit"] = new_limit
+        else:
+            result["status"] = "failure"
+            result["message"] = "Failed to update the limit."
+
+    except NoSuchElementException as e:
+        result["status"] = "error"
+        result["message"] = f"Element not found: {e}"
+    except TimeoutException as e:
+        result["status"] = "error"
+        result["message"] = f"Operation timed out: {e}"
+    except AssertionError as e:
+        result["status"] = "error"
+        result["message"] = f"Assertion failed: {e}"
+    except Exception as e:
+        result["status"] = "error"
+        result["message"] = f"An unexpected error occurred: {e}"
+
+    return result
+
+def main():
+    args = parse_arguments()
+    result = {}
+
+    try:
+        with configure_driver(args.not_headless) as driver:
+            result = set_export_limit(driver, args.fronius_url, args.fronius_password, args.export_limit)
+    except Exception as e:
+        result = {
+            "status": "error",
+            "message": f"An error occurred while setting the export limit: {e}"
         }
-    ).json()
-    desired_limit = int(float(response["state"]))
-    if desired_limit < -1:
-        print("Setting to 0, rather than", desired_limit)
-        desired_limit = 0
+    
+    print(json.dumps(result))
+    if result.get("status") == "error":
+        sys.exit(1)
     else:
-        print("Setting to", desired_limit)
-    # Ok, back to webdriver.
+        sys.exit(0)
 
-    username = driver.find_element(By.TAG_NAME, "select").get_property("value")
-    password = driver.find_element(By.CSS_SELECTOR, "[type=password]")
-    assert username == 'string:service', username
-    password.send_keys(args.fronius_password)
-    password.send_keys(Keys.RETURN)
-
-    limit = driver.find_element(By.CSS_SELECTOR, '[input-validator="softLimitValidator"]')
-    current_limit = limit.get_property("value")
-    print("Existing limit: ", current_limit)
-    if current_limit == str(desired_limit):
-        print("They match. Skip!")
-        exit(0)
-    limit.clear()
-    limit.send_keys(str(desired_limit))
-
-    ok_button = driver.find_elements(By.CSS_SELECTOR, "button.OK")
-    ok_button[2].click()
-    driver.find_elements(By.XPATH, '//button[normalize-space()="OK"]')
-except Exception:
-    print(driver.find_element(By.TAG_NAME, "body").screenshot_as_base64)
-    raise
-finally:
-    driver.close()
+if __name__ == "__main__":
+    main()

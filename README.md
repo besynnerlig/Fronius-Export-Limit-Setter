@@ -1,6 +1,6 @@
-# Fronius driver
+# Fronius Export Limit Setter
 
-This script sets the soft limit field on a fronius inverter.
+This script sets the soft export limit field on a fronius inverter.
 
 ## Setup
 

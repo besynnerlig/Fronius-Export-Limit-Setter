@@ -1,6 +1,6 @@
-# Fronius driver for Home Assistant
+# Fronius driver
 
-This script provides a means to apply a value contained in a helper to the soft limit field on a fronius inverter.
+This script sets the soft limit field on a fronius inverter.
 
 ## Setup
 
@@ -11,30 +11,31 @@ This script provides a means to apply a value contained in a helper to the soft 
 
 The script requires the following arguments:
 
-- `-t`, `--home_assistant_token`: The access token for Home Assistant.
-- `-u`, `--home_assistant_url`: The URL of your Home Assistant instance.
 - `-f`, `--fronius_url`: The URL of your Fronius inverter.
 - `-p`, `--fronius_password`: The password to access your Fronius inverter.
-
-Additionally, you can specify one optional argument:
-
-- `-e`, `--home_assistant_export_limit_entity`: The entity in Home Assistant that controls the export limit. Defaults to `input_number.export_limit` if not specified.
+- `-e`, `--export_limit`: The desired export limit in Watts
 
 You also have an option to specify whether to run your script in headless mode.
 
 - `-n`, `--not_headless`: Disable the headless mode in Firefox. Potentially useful for debugging. Probably not useful in docker.
 
+## Script output
+
+The script outputs json data. 
+
+Example: `{"desired_limit": 15123, "status": "success", "message": "Limit successfully updated.", "current_limit": "15100", "new_limit": "15123"}`
+
 ## How to run the script locally
 
-0. Ensure python is installed - install it if required.
-1. Create a virtual environment (technically optional, but I'd recommend it) using `python -mvenv venv`
-2. Enable it. `. venv/bin/activate` (at least on linux)
-3. Install dependencies. `pip install requirements.txt`
-4. Run the script with all mandatory arguments.
+1. Ensure python and firefox are installed.
+2. Create a virtual environment (technically optional, but I'd recommend it) using `python -mvenv venv`
+3. Enable it. `. venv/bin/activate` (at least on linux)
+4. Install dependencies. `pip install requirements.txt`
+5. Run the script with all mandatory arguments.
 
 It might look something like this:
 
-    ./main.py -t ABCDEFG -u http://localhost:8123 -f http://fronius -p "R3D@CT3D"
+    ./main.py -e 15000 -f http://fronius -p "R3D@CT3D"
 
 ## How to run the script in docker
 

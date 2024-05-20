@@ -37,6 +37,7 @@ The script outputs JSON data. An example output looks like this:
   "current_limit": "15100",
   "new_limit": "15123"
 }
+```
 
 ## Running the Script Locally
 
@@ -57,7 +58,7 @@ The script outputs JSON data. An example output looks like this:
 
 2. **Run the Script**:
    ```sh
-   ./main.py -e 15000 -f http://fronius -p "R3D@CT3D"
+   ./main.py -e 15000 -f http://local_inverter_hostname_or_ip_address -p "R3D@CT3D"
 
 
 ## Running the Script in Docker

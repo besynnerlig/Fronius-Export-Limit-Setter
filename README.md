@@ -19,7 +19,7 @@ This script sets the soft export limit field on a Fronius inverter. It has been 
 
 The script requires the following arguments:
 
-- `-d`, `--debug`: Enable debug mode. Captures a screenshot if an exception occurs.
+- `-d`, `--debug`: Enable debug mode. Logs messages to both console and to the log file.
 - `-f`, `--fronius_url`: The URL of your Fronius inverter (e.g., `http://192.168.2.100`).
 - `-p`, `--fronius_password`: The password to access your Fronius inverter.
 - `-e`, `--export_limit`: The desired export limit in Watts.
@@ -60,9 +60,77 @@ The script outputs JSON data. An example output looks like this:
    ```sh
    ./main.py -e 15000 -f http://local_inverter_hostname_or_ip_address -p "R3D@CT3D"
 
-## Handling Errors
+## Handling Errors and logging
 
-If an exception is thrown during execution and the script is running in debug mode, the script will output a base64 representation of a screenshot to the terminal. You can convert this screenshot using an online base64 to image converter to gain insights into the error.
+Logging is set up to write to a file in a subdirectory called "logs" and ensure this directory is created if it doesn't exist. Additionally, we'll save screenshots as JPG files in the logs directory when an error occurs. More verbose logging and logging to console is made when debug mode is activated.
+
+## OpenHAB HABApp integration example
+
+This script is versatile and can be integrated into various home automation environments. Below is an example of how to call this script from within HABApp in OpenHAB. You will likely need to modify the example code to suit your specific requirements, but it should serve as a useful starting point.
+
+```python
+class DynamicPowerReduction(Rule):
+    '''Setting the dynamic power reduction on the Fronius inverter'''
+    def __init__(self):
+        super().__init__()
+        self.log = logging.getLogger(f'{configuration["system"]["MY_LOGGER_NAME"]}.{self.rule_name}')
+        self.log.setLevel(logging.INFO)
+        self.run.soon(self.process_changes)
+        self.run.soon(self.new_export_limit)
+        energy_price_sell_item.listen_event(self.process_changes, ValueChangeEventFilter())
+        grid_export_limit_item.listen_event(self.new_export_limit, ValueChangeEventFilter())
+
+    def _on_subprocess_finished(self, process_output: str):
+        #self.log.debug(process_output)
+        try:
+            # Parse the JSON response
+            response_data = json.loads(process_output)
+        except Exception as e:
+            self.log.error(f"Failed to convert the response from the Fronius grid export limit script with error: {e}")
+            self.log.error(process_output)
+            return
+
+        # Check the status and log the appropriate message
+        status = response_data.get('status', 'unknown')
+        if status == 'success':
+            self.log.info(f"New export limit value: {response_data['new_limit']} successfully set")
+        elif status == 'skipped':
+            self.log.info(f"Current limit [{response_data['new_limit']}] matches desired limit. Skipping update.")
+        else:
+            self.log.error(f"An error occurred: {response_data.get('message', 'Unknown error')}")
+
+    def process_changes(self, event=None):
+        """
+        Process changes
+        """
+        self.log.debug(f'[[{self.rule_name}]]: was triggered by: [{event.name if event else "None"}] with event value [{event.value if event else "None"}]')
+
+        if energy_price_sell_item.get_value(0.0) < 0.0:
+            new_export_limit = 0
+        else:
+            new_export_limit = 15100
+
+        current_grid_export_limit = grid_export_limit_item.get_value(0.0)
+
+        if new_export_limit != current_grid_export_limit:
+            grid_export_limit_item.oh_post_update(new_export_limit)
+            self.log.info(f"Setting new grid export limit to: {new_export_limit} W. (Current limit is: {current_grid_export_limit})")
+
+    def new_export_limit(self, event=None):
+        self.log.debug(f'[[{self.rule_name}]]: was triggered by: [{event.name if event else "None"}] with event value [{event.value if event else "None"}]')
+        self.log.info(f"Calling script to set new export limit")
+        args_list = [
+            'someusername@server_hostname',
+            '~/fronius-export-limit-setter/.venv/bin/python',
+            '~/fronius-export-limit-setter/main.py',
+            '-e', str(grid_export_limit_item.value),
+            '-f', 'http://fronius.home',
+            '-p', 'SOMESECRETPASSWORD'
+        ]
+        self.execute_subprocess(self._on_subprocess_finished, 'ssh', *args_list, capture_output=True)
+
+DynamicPowerReduction()
+```
 
 ## Liability and Warranty
 

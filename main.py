@@ -1,15 +1,16 @@
 #!/usr/bin/env python
 
-import sys
 import json
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+import sys
 from argparse import ArgumentParser
+from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 
 def parse_arguments():
     parser = ArgumentParser(description="Set Fronius inverter's soft limit field to a specified value.")
+    parser.add_argument('-d', '--debug', action="store_true", help='Output debug information including screenshot on error')
     parser.add_argument('-f', '--fronius_url', type=str, required=True, help='Fronius URL. Eg: http://192.168.2.100')
     parser.add_argument('-p', '--fronius_password', type=str, required=True, help='Fronius service account password')
     parser.add_argument('-e', '--export_limit', type=int, required=True, help='Export Limit as an integer value')
@@ -22,7 +23,7 @@ def configure_driver(not_headless):
         options.add_argument("-headless")
     return webdriver.Firefox(options=options)
 
-def set_export_limit(driver, fronius_url, fronius_password, export_limit):
+def set_export_limit(driver, fronius_url, fronius_password, export_limit, debug):
     driver.implicitly_wait(10)
     driver.get(f"{fronius_url}/#/settings/evu")
 
@@ -82,6 +83,8 @@ def set_export_limit(driver, fronius_url, fronius_password, export_limit):
     except Exception as e:
         result["status"] = "error"
         result["message"] = f"An unexpected error occurred: {e}"
+        if debug:
+            result["screenshot"] = driver.find_element(By.TAG_NAME, "body").screenshot_as_base64
 
     return result
 
@@ -91,13 +94,18 @@ def main():
 
     try:
         with configure_driver(args.not_headless) as driver:
-            result = set_export_limit(driver, args.fronius_url, args.fronius_password, args.export_limit)
+            result = set_export_limit(driver, args.fronius_url, args.fronius_password, args.export_limit, args.debug)
     except Exception as e:
         result = {
             "status": "error",
             "message": f"An error occurred while setting the export limit: {e}"
         }
-    
+        if args.debug:
+            try:
+                result["screenshot"] = driver.find_element(By.TAG_NAME, "body").screenshot_as_base64
+            except:
+                result["screenshot"] = "Failed to capture screenshot."
+
     print(json.dumps(result))
     if result.get("status") == "error":
         sys.exit(1)

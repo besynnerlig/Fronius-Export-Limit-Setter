@@ -60,16 +60,6 @@ The script outputs JSON data. An example output looks like this:
    ```sh
    ./main.py -e 15000 -f http://local_inverter_hostname_or_ip_address -p "R3D@CT3D"
 
-
-## Running the Script in Docker
-
-1. **Ensure Docker is Installed**:
-   - Follow the [official Docker installation guide](https://docs.docker.com/get-docker/).
-
-2. **Run the Docker Container**:
-   ```sh
-   docker run --rm besynnerlig/fronius-export-limit-setter -e 15000 -f http://fronius -p "R3D@CT3D"
-
 ## Handling Errors
 
 If an exception is thrown during execution and the script is running in debug mode, the script will output a base64 representation of a screenshot to the terminal. You can convert this screenshot using an online base64 to image converter to gain insights into the error.

@@ -1,50 +1,89 @@
 # Fronius Export Limit Setter
 
-This script sets the soft export limit field on a fronius inverter.
+This script sets the soft export limit field on a Fronius inverter. It has been tested on a Fronius Symo 15.0-3-M.
 
-## Setup
+## Features
 
-* Ensure you know the service password for your fronius inverter. You will need it.
-* In the DNO Editor, scroll down to "Dynamic power reduction", and ensure that "Limit Entire System" and "Export Limiting Control (Soft Limit)" are both selected.
+- Sets the export limit on a Fronius inverter.
+- Outputs results in JSON format.
+- Option to run in debug mode, capturing screenshots on errors.
+- Can be run in headless or non-headless mode.
+
+## Setup Instructions
+
+1. **Fronius Inverter Configuration**:
+   - Ensure you have the service password for your Fronius inverter.
+   - In the DNO Editor, scroll down to "Dynamic power reduction" and ensure that "Limit Entire System" and "Export Limiting Control (Soft Limit)" are both selected.
 
 ## Script Arguments
 
 The script requires the following arguments:
 
-- `-f`, `--fronius_url`: The URL of your Fronius inverter.
+- `-d`, `--debug`: Enable debug mode. Captures a screenshot if an exception occurs.
+- `-f`, `--fronius_url`: The URL of your Fronius inverter (e.g., `http://192.168.2.100`).
 - `-p`, `--fronius_password`: The password to access your Fronius inverter.
-- `-e`, `--export_limit`: The desired export limit in Watts
+- `-e`, `--export_limit`: The desired export limit in Watts.
+- `-n`, `--not_headless`: Disable headless mode in Firefox. Useful for debugging.
 
-You also have an option to specify whether to run your script in headless mode.
+## Script Output
 
-- `-n`, `--not_headless`: Disable the headless mode in Firefox. Potentially useful for debugging. Probably not useful in docker.
+The script outputs JSON data. An example output looks like this:
 
-## Script output
+```json
+{
+  "desired_limit": 15123,
+  "status": "success",
+  "message": "Limit successfully updated.",
+  "current_limit": "15100",
+  "new_limit": "15123"
+}
 
-The script outputs json data. 
+## Running the Script Locally
 
-Example: `{"desired_limit": 15123, "status": "success", "message": "Limit successfully updated.", "current_limit": "15100", "new_limit": "15123"}`
+1. **Install Dependencies**:
+   - Ensure Python and Firefox are installed.
+   - Create a virtual environment (optional but recommended):
+     ```sh
+     python -m venv venv
+     ```
+   - Activate the virtual environment:
+     ```sh
+     . venv/bin/activate  # On Linux
+     ```
+   - Install the required Python packages:
+     ```sh
+     pip install -r requirements.txt
+     ```
 
-## How to run the script locally
+2. **Run the Script**:
+   ```sh
+   ./main.py -e 15000 -f http://fronius -p "R3D@CT3D"
 
-1. Ensure python and firefox are installed.
-2. Create a virtual environment (technically optional, but I'd recommend it) using `python -mvenv venv`
-3. Enable it. `. venv/bin/activate` (at least on linux)
-4. Install dependencies. `pip install requirements.txt`
-5. Run the script with all mandatory arguments.
 
-It might look something like this:
+## Running the Script in Docker
 
-    ./main.py -e 15000 -f http://fronius -p "R3D@CT3D"
+1. **Ensure Docker is Installed**:
+   - Follow the [official Docker installation guide](https://docs.docker.com/get-docker/).
 
-## How to run the script in docker
+2. **Run the Docker Container**:
+   ```sh
+   docker run --rm besynnerlig/fronius-export-limit-setter -e 15000 -f http://fronius -p "R3D@CT3D"
 
-Same deal really, except you get to skip nearly all the steps. Obviously ensure docker is installed though.
+## Handling Errors
 
-    docker run --rm shadowbert/fronius-driver -t ABCDEFG -u http://localhost:8123 -f http://fronius -p "R3D@CT3D"
+If an exception is thrown during execution and the script is running in debug mode, the script will output a base64 representation of a screenshot to the terminal. You can convert this screenshot using an online base64 to image converter to gain insights into the error.
 
-## What if everything goes belly up?
+## Liability and Warranty
 
-If an exception is thrown during execution, a base64 representation of a screenshot will be output to the terminal.
-Convert it (search for base64 to image in your favourite search engine if you don't know what you're doing) and see if
-you gain any insight.
+This software comes with no warranty and no support. Use it at your own risk. The author shall not be held liable nor be blamed for any damages that occur directly or indirectly from using it.
+
+## Project Origin and License
+
+This script is derived from the original work by shadow7412 on GitHub:
+[Original Script](https://github.com/shadow7412/fronius-driver/blob/master/main.py)
+
+The original script was designed for Home Assistant integration and released under the GPL-3.0 license. This modified version generalizes the functionality to be used independently of any specific home automation system.
+
+**License**: GPL-3.0
+
+This updated script can be found at: [Fronius Export Limit Setter](https://github.com/besynnerlig/Fronius-Export-Limit-Setter)

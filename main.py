@@ -15,6 +15,9 @@ This script can be found at: https://github.com/besynnerlig/Fronius-Export-Limit
 
 import json
 import sys
+import os
+import logging
+from datetime import datetime
 from argparse import ArgumentParser
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
@@ -29,7 +32,28 @@ class FroniusExportLimitSetter:
         self.not_headless = not_headless
         self.debug = debug
         self.driver = self.configure_driver()
+        self.setup_logging()
     
+    def setup_logging(self):
+        """Set up logging to a file in a subdirectory."""
+        log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, 'fronius_export_limit_setter.log')
+
+        logging.basicConfig(
+            level=logging.DEBUG if self.debug else logging.INFO,
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            handlers=[logging.FileHandler(log_file)]
+        )
+
+        if self.debug:
+            console_handler = logging.StreamHandler(sys.stdout)
+            console_handler.setLevel(logging.DEBUG)
+            console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+            logging.getLogger().addHandler(console_handler)
+
+        self.logger = logging.getLogger(__name__)
+
     def configure_driver(self):
         """Configure and return the Selenium WebDriver."""
         options = webdriver.FirefoxOptions()
@@ -68,6 +92,7 @@ class FroniusExportLimitSetter:
             if current_limit == str(self.export_limit):
                 result["status"] = "skipped"
                 result["message"] = "Current limit matches desired limit. Skipping update."
+                self.logger.info(json.dumps(result))
                 return result
 
             # Update the soft limit
@@ -92,19 +117,29 @@ class FroniusExportLimitSetter:
         except NoSuchElementException as e:
             result["status"] = "error"
             result["message"] = f"Element not found: {e}"
+            self.log_error_with_screenshot(e)
         except TimeoutException as e:
             result["status"] = "error"
             result["message"] = f"Operation timed out: {e}"
+            self.log_error_with_screenshot(e)
         except AssertionError as e:
             result["status"] = "error"
             result["message"] = f"Assertion failed: {e}"
+            self.log_error_with_screenshot(e)
         except Exception as e:
             result["status"] = "error"
             result["message"] = f"An unexpected error occurred: {e}"
-            if self.debug:
-                result["screenshot"] = self.driver.find_element(By.TAG_NAME, "body").screenshot_as_base64
+            self.log_error_with_screenshot(e)
 
+        self.logger.info(json.dumps(result))
         return result
+
+    def log_error_with_screenshot(self, error):
+        """Log error details and save a screenshot."""
+        log_dir = os.path.join(os.path.dirname(__file__), 'logs')
+        screenshot_path = os.path.join(log_dir, f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+        self.driver.save_screenshot(screenshot_path)
+        self.logger.error(f"{error} - Screenshot saved to {screenshot_path}")
 
     def run(self):
         """Run the process to set the export limit and print the result as JSON."""
@@ -115,18 +150,11 @@ class FroniusExportLimitSetter:
                 "status": "error",
                 "message": f"An error occurred while setting the export limit: {e}"
             }
-            if self.debug:
-                try:
-                    result["screenshot"] = self.driver.find_element(By.TAG_NAME, "body").screenshot_as_base64
-                except:
-                    result["screenshot"] = "Failed to capture screenshot."
+            self.log_error_with_screenshot(e)
         finally:
             self.driver.close()
 
-        if self.debug:
-            print(json.dumps(result, indent=4))  # Pretty-print JSON output for debugging
-        else:
-            print(json.dumps(result))
+        print(json.dumps(result, indent=4) if self.debug else json.dumps(result))
 
         if result.get("status") == "error":
             sys.exit(1)

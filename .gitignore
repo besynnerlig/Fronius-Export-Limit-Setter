@@ -35,6 +35,9 @@ env/
 env.bak/
 venv.bak/
 
+# Logs
+logs/
+
 # VS Code settings
 .vscode/
 *.code-workspace

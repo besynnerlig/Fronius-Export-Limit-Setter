@@ -86,7 +86,7 @@ class FroniusExportLimitSetter:
             # Find the soft limit input field
             limit = self.driver.find_element(By.CSS_SELECTOR, '[input-validator="softLimitValidator"]')
             current_limit = limit.get_property("value")
-            result["current_limit"] = current_limit
+            result["current_limit"] = int(current_limit)
 
             # Check if the current limit matches the desired limit
             if current_limit == str(self.export_limit):
@@ -109,7 +109,7 @@ class FroniusExportLimitSetter:
             if new_limit == str(self.export_limit):
                 result["status"] = "success"
                 result["message"] = "Limit successfully updated."
-                result["new_limit"] = new_limit
+                result["new_limit"] = int(new_limit)
             else:
                 result["status"] = "failure"
                 result["message"] = "Failed to update the limit."

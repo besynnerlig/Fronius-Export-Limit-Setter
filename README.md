@@ -34,8 +34,8 @@ The script outputs JSON data. An example output looks like this:
   "desired_limit": 15123,
   "status": "success",
   "message": "Limit successfully updated.",
-  "current_limit": "15100",
-  "new_limit": "15123"
+  "current_limit": 15100,
+  "new_limit": 15123
 }
 ```
 
@@ -134,7 +134,7 @@ DynamicPowerReduction()
 
 ## Liability and Warranty
 
-This software comes with no warranty and no support. Use it at your own risk. The author shall not be held liable nor be blamed for any damages that occur directly or indirectly from using it.
+This software is provided "as is" without any warranty or support. Use it at your own risk. The author shall not be held liable for any damages, whether direct or indirect, resulting from the use of this software.
 
 ## Project Origin and License
 

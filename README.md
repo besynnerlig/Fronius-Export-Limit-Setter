@@ -1,6 +1,6 @@
 # Fronius Export Limit Setter
 
-This script sets the soft export limit field on a Fronius inverter. It has been tested on a Fronius Symo 15.0-3-M.
+This script sets the soft export limit field on a Fronius inverter. It has been tested on a Fronius Symo 15.0-3-M. It probably will, but it's currently untested if it works on other Fronius models.
 
 ## Features
 
@@ -8,6 +8,11 @@ This script sets the soft export limit field on a Fronius inverter. It has been 
 - Outputs results in JSON format.
 - Option to run in debug mode, capturing screenshots on errors.
 - Can be run in headless or non-headless mode.
+
+## Requirements
+
+- A Fronius inverter.
+- A Smart Meter connected to your inverter.
 
 ## Setup Instructions
 

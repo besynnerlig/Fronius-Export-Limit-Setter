@@ -23,6 +23,7 @@ from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from fronius_credentials import CredentialsError, default_credentials_path, resolve_password
 
 class FroniusExportLimitSetter:
     def __init__(self, fronius_url, fronius_password, export_limit, not_headless, debug):
@@ -170,7 +171,9 @@ def parse_arguments():
     parser = ArgumentParser(description="Set Fronius inverter's soft limit field to a specified value.")
     parser.add_argument('-d', '--debug', action="store_true", help='Output debug information including screenshot on error')
     parser.add_argument('-f', '--fronius_url', type=str, required=True, help='Fronius URL. Eg: http://192.168.2.100')
-    parser.add_argument('-p', '--fronius_password', type=str, required=True, help='Fronius service account password')
+    parser.add_argument('-p', '--fronius_password', type=str, help='Deprecated: Fronius service account password. Use the credentials file instead')
+    parser.add_argument('-i', '--inverter', type=str, help='Section name in the credentials file. Default: host name of the Fronius URL')
+    parser.add_argument('-c', '--credentials_file', type=str, help=f'Credentials file. Default: {default_credentials_path()}')
     parser.add_argument('-e', '--export_limit', type=int, required=True, help='Export Limit as an integer value')
     parser.add_argument('-n', '--not_headless', action="store_true", help="Run Firefox in headless mode.")
     return parser.parse_args()
@@ -178,9 +181,22 @@ def parse_arguments():
 def main():
     """Main entry point for the script."""
     args = parse_arguments()
+    try:
+        fronius_password = resolve_password(
+            cli_password=args.fronius_password,
+            fronius_url=args.fronius_url,
+            inverter=args.inverter,
+            credentials_file=args.credentials_file
+        )
+    except CredentialsError as e:
+        print(f"error: {e}", file=sys.stderr)
+        result = {"status": "error", "message": str(e)}
+        print(json.dumps(result, indent=4) if args.debug else json.dumps(result))
+        sys.exit(e.exit_code)
+
     setter = FroniusExportLimitSetter(
         fronius_url=args.fronius_url,
-        fronius_password=args.fronius_password,
+        fronius_password=fronius_password,
         export_limit=args.export_limit,
         not_headless=args.not_headless,
         debug=args.debug

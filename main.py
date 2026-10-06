@@ -59,6 +59,10 @@ class FroniusExportLimitSetter:
         options = webdriver.FirefoxOptions()
         if not self.not_headless:
             options.add_argument("-headless")
+        options.set_preference("security.sandbox.content.level", 0)
+        options.set_preference("gfx.webrender.force-disabled", True)
+        options.set_preference("layers.acceleration.disabled", True)
+        options.set_preference("security.sandbox.content.level", 0)
         return webdriver.Firefox(options=options)
     
     def set_export_limit(self):
@@ -137,7 +141,7 @@ class FroniusExportLimitSetter:
     def log_error_with_screenshot(self, error):
         """Log error details and save a screenshot."""
         log_dir = os.path.join(os.path.dirname(__file__), 'logs')
-        screenshot_path = os.path.join(log_dir, f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+        screenshot_path = os.path.join(log_dir, f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
         self.driver.save_screenshot(screenshot_path)
         self.logger.error(f"{error} - Screenshot saved to {screenshot_path}")
 

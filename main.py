@@ -53,6 +53,9 @@ class FroniusExportLimitSetter:
             console_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
             logging.getLogger().addHandler(console_handler)
 
+        # At DEBUG level Selenium logs every WebDriver request, including typed text such as the password
+        logging.getLogger('selenium').setLevel(logging.INFO)
+
         self.logger = logging.getLogger(__name__)
 
     def configure_driver(self):

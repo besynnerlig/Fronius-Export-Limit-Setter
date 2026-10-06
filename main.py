@@ -20,10 +20,50 @@ import logging
 from datetime import datetime
 from argparse import ArgumentParser
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
+from selenium.common.exceptions import (NoSuchElementException, StaleElementReferenceException,
+                                        TimeoutException, WebDriverException)
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.support.ui import WebDriverWait
 from fronius_credentials import CredentialsError, default_credentials_path, resolve_password
+
+PAGE_TIMEOUT = 30
+LOGIN_TIMEOUT = 15
+LOGIN_POLL_FREQUENCY = 0.5
+PASSWORD_SELECTOR = "[type=password]"
+LIMIT_SELECTOR = '[input-validator="softLimitValidator"]'
+# The "Logout" link in the navigation, only shown to a logged-in user
+LOGGED_IN_SELECTOR = 'a[ng-click="logoutUser()"]'
+
+class LoginError(Exception):
+    """The inverter did not confirm the login. The message never contains the password."""
+
+def is_displayed(driver, selector):
+    """Return True if an element matching the CSS selector is displayed."""
+    return any(e.is_displayed() for e in driver.find_elements(By.CSS_SELECTOR, selector))
+
+def is_logged_in(driver):
+    """Return True if the web interface shows the logged-in state: no login form, but the Logout link."""
+    return not is_displayed(driver, PASSWORD_SELECTOR) and is_displayed(driver, LOGGED_IN_SELECTOR)
+
+def wait_for_login(driver, timeout=None, poll_frequency=None):
+    """Wait until the web interface shows the logged-in state, or raise LoginError."""
+    timeout = LOGIN_TIMEOUT if timeout is None else timeout
+    try:
+        WebDriverWait(driver, timeout, poll_frequency=poll_frequency or LOGIN_POLL_FREQUENCY,
+                      ignored_exceptions=[StaleElementReferenceException]).until(is_logged_in)
+    except TimeoutException:
+        raise LoginError(f"Login not confirmed within {timeout} s: the login form is still shown or the "
+                         "logged-in navigation did not appear. Check the inverter password.") from None
+
+def clear_password_fields(driver):
+    """Empty all password fields, so a screenshot does not even show the password length."""
+    try:
+        for field in driver.find_elements(By.CSS_SELECTOR, PASSWORD_SELECTOR):
+            field.clear()
+    except WebDriverException:
+        pass
 
 class FroniusExportLimitSetter:
     def __init__(self, fronius_url, fronius_password, export_limit, not_headless, debug):
@@ -71,7 +111,7 @@ class FroniusExportLimitSetter:
     
     def set_export_limit(self):
         """Set the export limit on the Fronius inverter."""
-        self.driver.implicitly_wait(10)
+        self.driver.implicitly_wait(0)  # explicit waits only
         self.driver.get(f"{self.fronius_url}/#/settings/evu")
 
         result = {
@@ -81,9 +121,11 @@ class FroniusExportLimitSetter:
         }
 
         try:
+            wait = WebDriverWait(self.driver, PAGE_TIMEOUT)
+
             # Locate the username field and validate it
-            username = self.driver.find_element(By.TAG_NAME, "select").get_property("value")
-            password = self.driver.find_element(By.CSS_SELECTOR, "[type=password]")
+            username = wait.until(EC.presence_of_element_located((By.TAG_NAME, "select"))).get_property("value")
+            password = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, PASSWORD_SELECTOR)))
 
             assert username == 'string:service', f"Unexpected username: {username}"
 
@@ -91,8 +133,12 @@ class FroniusExportLimitSetter:
             password.send_keys(self.fronius_password)
             password.send_keys(Keys.RETURN)
 
-            # Find the soft limit input field
-            limit = self.driver.find_element(By.CSS_SELECTOR, '[input-validator="softLimitValidator"]')
+            # Neither read nor write the limit unless the inverter confirmed the login
+            wait_for_login(self.driver)
+            self.logger.info("Login confirmed")
+
+            # Find the soft limit input field, which is shown a few seconds after the login
+            limit = wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, LIMIT_SELECTOR)))
             current_limit = limit.get_property("value")
             result["current_limit"] = int(current_limit)
 
@@ -106,7 +152,7 @@ class FroniusExportLimitSetter:
             # Update the soft limit
             limit.clear()
             limit.send_keys(str(self.export_limit))
-            ok_button = self.driver.find_elements(By.CSS_SELECTOR, "button.OK")
+            ok_button = wait.until(lambda d: d.find_elements(By.CSS_SELECTOR, "button.OK"))
             if ok_button:
                 ok_button[2].click()
             else:
@@ -114,6 +160,8 @@ class FroniusExportLimitSetter:
 
             # Confirm the limit has been set
             new_limit = limit.get_property("value")
+            if not is_logged_in(self.driver):
+                raise LoginError("Logged out before the new limit could be confirmed.")
             if new_limit == str(self.export_limit):
                 result["status"] = "success"
                 result["message"] = "Limit successfully updated."
@@ -122,6 +170,10 @@ class FroniusExportLimitSetter:
                 result["status"] = "failure"
                 result["message"] = "Failed to update the limit."
 
+        except LoginError as e:
+            result["status"] = "error"
+            result["message"] = str(e)
+            self.log_error_with_screenshot(e)
         except NoSuchElementException as e:
             result["status"] = "error"
             result["message"] = f"Element not found: {e}"
@@ -144,6 +196,7 @@ class FroniusExportLimitSetter:
 
     def log_error_with_screenshot(self, error):
         """Log error details and save a screenshot."""
+        clear_password_fields(self.driver)
         log_dir = os.path.join(os.path.dirname(__file__), 'logs')
         screenshot_path = os.path.join(log_dir, f"screenshot_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png")
         self.driver.save_screenshot(screenshot_path)

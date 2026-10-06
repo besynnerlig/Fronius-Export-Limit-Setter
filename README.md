@@ -98,6 +98,12 @@ The script outputs JSON data. An example output looks like this:
 }
 ```
 
+## Login check
+
+After submitting the password, the script waits up to 15 seconds until the web interface confirms the login: the login form must be gone and the *Logout* link in the navigation, which is only shown to a logged-in user, must be displayed. Only then is the export limit read or changed. Before reporting `success`, the script checks that it is still logged in. The limit field itself is waited for up to 30 seconds, since it appears a few seconds after the login.
+
+If the login is not confirmed (for example because of a wrong password), the result is `"status": "error"` with a message such as `Login not confirmed within 15 s ...`, and the exit code is 1. A `skipped` or `success` result therefore always comes from a confirmed login. Error screenshots are taken after emptying all password fields.
+
 ## Running the Script Locally
 
 1. **Install Dependencies**:

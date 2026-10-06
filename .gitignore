@@ -148,3 +148,9 @@ cython_debug/
 # Windows-specific files
 Thumbs.db
 ehthumbs.db
+
+# Credentials (never commit passwords)
+credentials
+credentials.*
+*.credentials
+.config/

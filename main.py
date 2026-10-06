@@ -170,7 +170,7 @@ def parse_arguments():
     """Parse command line arguments."""
     parser = ArgumentParser(description="Set Fronius inverter's soft limit field to a specified value.")
     parser.add_argument('-d', '--debug', action="store_true", help='Output debug information including screenshot on error')
-    parser.add_argument('-f', '--fronius_url', type=str, required=True, help='Fronius URL. Eg: http://192.168.2.100')
+    parser.add_argument('-f', '--fronius_url', type=str, required=True, help='Fronius URL. Eg: http://192.0.2.10')
     parser.add_argument('-p', '--fronius_password', type=str, help='Deprecated: Fronius service account password. Use the credentials file instead')
     parser.add_argument('-i', '--inverter', type=str, help='Section name in the credentials file. Default: host name of the Fronius URL')
     parser.add_argument('-c', '--credentials_file', type=str, help=f'Credentials file. Default: {default_credentials_path()}')

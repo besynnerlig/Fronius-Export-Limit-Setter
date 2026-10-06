@@ -22,13 +22,67 @@ This script sets the soft export limit field on a Fronius inverter. It has been 
 
 ## Script Arguments
 
-The script requires the following arguments:
+The script accepts the following arguments:
 
+- `-f`, `--fronius_url` (required): The URL of your Fronius inverter (e.g., `http://192.0.2.10`).
+- `-e`, `--export_limit` (required): The desired export limit in Watts.
+- `-i`, `--inverter`: The section to use in the credentials file. Takes precedence over the host name of the Fronius URL.
+- `-c`, `--credentials_file`: Path to the credentials file (default: `~/.config/fronius-export-limit-setter/credentials`, see below).
 - `-d`, `--debug`: Enable debug mode. Logs messages to both console and to the log file.
-- `-f`, `--fronius_url`: The URL of your Fronius inverter (e.g., `http://192.168.2.100`).
-- `-p`, `--fronius_password`: The password to access your Fronius inverter.
-- `-e`, `--export_limit`: The desired export limit in Watts.
 - `-n`, `--not_headless`: Disable headless mode in Firefox. Useful for debugging.
+- `-p`, `--fronius_password`: **Deprecated.** The password of your Fronius inverter. A password on the command line is visible to other users in the process list (and on both hosts when called over ssh), so use the credentials file instead. When `-p` is used, the credentials file is not read and a warning is printed on stderr. This option will be removed in a future version.
+
+## Inverter password
+
+The script reads the inverter's service password from a credentials file that only you can read, by default `~/.config/fronius-export-limit-setter/credentials` (or `$XDG_CONFIG_HOME/fronius-export-limit-setter/credentials` if `XDG_CONFIG_HOME` is set). The file is in INI format with one section per inverter:
+
+```ini
+[192.0.2.10]
+password = <service password of this inverter>
+
+[inverter2]
+password = <service password of inverter2>
+```
+
+The section is chosen as follows:
+
+1. `--inverter NAME` selects the section `[NAME]`, if given.
+2. Otherwise the host name of the `--fronius_url` is used, e.g. `[192.0.2.10]` for `http://192.0.2.10` (compared case-insensitively).
+
+Section names are chosen by you and are only stored in your local credentials file.
+
+The script refuses to read the file if it is not a regular file owned by you, if the group or others have any access to it (mode must be `600` or stricter), or if its directory is writable by the group or others. Passwords are never printed, and error messages never include the contents of the file. Leading and trailing spaces of a password are ignored.
+
+Create the file without the password ever appearing on a command line or in your shell history (`read -rs` reads it without echo; `printf` is a shell builtin):
+
+```sh
+(
+  umask 077
+  d="${XDG_CONFIG_HOME:-$HOME/.config}/fronius-export-limit-setter"
+  mkdir -p "$d" && chmod 700 "$d"
+  read -rs -p 'Inverter service password: ' PW; echo
+  { printf '[%s]\n' 'inverter1'; printf 'password = %s\n' "$PW"; } >> "$d/credentials"
+  unset PW
+  chmod 600 "$d/credentials"
+)
+```
+
+Repeat it with another section name for each additional inverter, and call the script with `--inverter inverter1` (or name the section after the inverter's host name instead).
+
+**Never commit a credentials file.** It is listed in `.gitignore`, but keep it outside the repository anyway.
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| 0    | Status `success`, `skipped` or `failure` (see the JSON output) |
+| 1    | Status `error`: the inverter could not be read or updated |
+| 2    | Invalid command line arguments |
+| 3    | Credentials file not found |
+| 4    | Credentials file refused: not a regular file, not owned by you, accessible by group/others, or in a directory writable by group/others |
+| 5    | Credentials file unreadable or invalid, or no password for the selected inverter |
+
+For exit codes 1 and 3 to 5, a JSON object with `"status": "error"` and a `"message"` is printed on stdout. For 3 to 5, the message is also printed on stderr.
 
 ## Script Output
 
@@ -63,7 +117,8 @@ The script outputs JSON data. An example output looks like this:
 
 2. **Run the Script**:
    ```sh
-   ./main.py -e 15000 -f http://local_inverter_hostname_or_ip_address -p "R3D@CT3D"
+   ./main.py -e 15000 -f http://192.0.2.10
+   ```
 
 ## Handling Errors and logging
 
@@ -125,12 +180,11 @@ class DynamicPowerReduction(Rule):
         self.log.debug(f'[[{self.rule_name}]]: was triggered by: [{event.name if event else "None"}] with event value [{event.value if event else "None"}]')
         self.log.info(f"Calling script to set new export limit")
         args_list = [
-            'someusername@server_hostname',
+            'user@192.0.2.20',
             '~/fronius-export-limit-setter/.venv/bin/python',
             '~/fronius-export-limit-setter/main.py',
             '-e', str(grid_export_limit_item.value),
-            '-f', 'http://fronius.home',
-            '-p', 'SOMESECRETPASSWORD'
+            '-f', 'http://192.0.2.10'
         ]
         self.execute_subprocess(self._on_subprocess_finished, 'ssh', *args_list, capture_output=True)
 

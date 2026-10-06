@@ -175,7 +175,7 @@ def parse_arguments():
     parser.add_argument('-i', '--inverter', type=str, help='Section name in the credentials file. Default: host name of the Fronius URL')
     parser.add_argument('-c', '--credentials_file', type=str, help=f'Credentials file. Default: {default_credentials_path()}')
     parser.add_argument('-e', '--export_limit', type=int, required=True, help='Export Limit as an integer value')
-    parser.add_argument('-n', '--not_headless', action="store_true", help="Run Firefox in headless mode.")
+    parser.add_argument('-n', '--not_headless', action="store_true", help="Show the Firefox window instead of running headless. Useful for debugging")
     return parser.parse_args()
 
 def main():

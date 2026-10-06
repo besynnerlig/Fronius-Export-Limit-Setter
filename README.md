@@ -120,6 +120,16 @@ The script outputs JSON data. An example output looks like this:
    ./main.py -e 15000 -f http://192.0.2.10
    ```
 
+## Running the Tests
+
+The tests cover reading the credentials file and do not need Firefox or an inverter. They only use example names, addresses and passwords.
+
+```sh
+. .venv/bin/activate
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
 ## Handling Errors and logging
 
 Logging is set up to write to a file in a subdirectory called "logs" and ensure this directory is created if it doesn't exist. Additionally, we'll save screenshots as JPG files in the logs directory when an error occurs. More verbose logging and logging to console is made when debug mode is activated.
